@@ -1,0 +1,308 @@
+/**
+ * In-panel localization. English is the primary language; Chinese is a
+ * selectable sub-language (default "en").
+ *
+ * Pure module (no Node/Editor APIs) so both main and panel can use it.
+ */
+
+export type Lang = 'en' | 'zh';
+
+const en: Record<string, string> = {
+    // toolbar
+    'tool.undo': 'Undo',
+    'tool.redo': 'Redo',
+    'tool.fit': 'Fit',
+    'tool.delete': 'Delete',
+    'tool.refresh': 'Refresh',
+    'tool.save': 'Save',
+    'tool.saveAs': 'Save As New',
+    'tool.saved': 'Saved',
+    'tool.unsaved': 'Unsaved',
+    'drop.discardChanges': 'Discard unsaved graph changes and switch effects?',
+    'load.title': 'Effect cannot be opened as a graph',
+    'load.noGraph': 'This effect has no valid embedded pTS-Effect graph.',
+    'load.failed': 'Could not load the effect:',
+    'load.preserved': 'The original effect has not been changed. Create a separate new effect to start a graph.',
+    'load.changed': 'The graph changed while opening another effect; the current graph was kept.',
+    'load.createFailed': 'Could not create a new effect.',
+    'load.copySaved': 'Saved a new effect; the original remains open:',
+
+    // node library
+    'lib.search': 'Search nodes...',
+    'lib.empty': 'No matching nodes.',
+    'lib.hint': 'Drag a node onto the canvas, or double-click the canvas to add the Root output.',
+
+    // categories
+    'cat.texture': 'Texture',
+    'cat.input': 'Input',
+    'cat.uv': 'UV',
+    'cat.effects': 'Effects',
+    'cat.output': 'Output',
+
+    // node names (26)
+    'node.texture': 'Texture',
+    'node.gradient': 'Gradient',
+    'node.refraction': 'Refraction',
+    'node.reflection': 'Reflection',
+    'node.noise': 'Noise',
+    'node.shadow': 'Shadow',
+    'node.solid_color': 'Solid Color',
+    'node.coordinate': 'Coordinate',
+    'node.time': 'Time',
+    'node.constant': 'Constant',
+    'node.param_relay': 'Parameter Relay',
+    'node.uv_offset': 'UV Offset',
+    'node.uv_remap': 'UV Remap',
+    'node.distort': 'Distort',
+    'node.alpha_anim': 'Alpha Animation',
+    'node.mask': 'Mask',
+    'node.blur': 'Blur',
+    'node.pixelate': 'Pixelate',
+    'node.sprite_sheet': 'Sprite Sheet',
+    'node.mixer': 'Mixer',
+    'node.dissolve': 'Dissolve',
+    'node.glow': 'Glow',
+    'node.outline': 'Outline',
+    'node.output': 'Output',
+    'node.code': 'Code',
+    'node.parallax': 'Parallax',
+
+    // ports
+    'port.color': 'Color',
+    'port.uv': 'UV',
+    'port.mask': 'Mask',
+    'port.depth': 'Depth',
+    'port.value': 'Value',
+    'port.colorA': 'A',
+    'port.colorB': 'B',
+    'port.in': 'In',
+    'port.out': 'Out',
+
+    // inspector
+    'insp.title': 'Inspector',
+    'insp.none': 'No node selected.',
+    'insp.node': 'Node',
+    'insp.common': 'Common',
+    'insp.layers': 'Layers',
+    'insp.name': 'Name',
+    'insp.type': 'Type',
+    'insp.position': 'Position',
+
+    // graph settings
+    'graph.title': 'Graph Settings',
+    'graph.nodes': 'Nodes',
+    'graph.links': 'Links',
+    'graph.outline': 'Node Outline',
+    'graph.output': 'Output',
+
+    // status bar
+    'status.shortcuts': 'Drag empty: box-select · Shift/Ctrl+drag or middle-drag: pan · Ctrl+click: add to selection · wheel: zoom · Alt+click: break wire · double-click: add node',
+    'status.nodes': 'Nodes',
+    'status.links': 'Links',
+    'status.unsaved': 'Unsaved Ctrl+S',
+    'status.saved': 'Saved',
+
+    // empty / banner states
+    'empty.title': 'No Effect Open',
+    'empty.hint': 'Open an .effect asset in the Assets panel, or create one via right-click → Create Effect, then open the editor.',
+    'empty.create': 'Create a new effect',
+
+    // settings
+    'settings.language': 'Language',
+    'settings.language.en': 'English',
+    'settings.language.zh': '中文',
+
+    // params (shared)
+    'p.color': 'Color',
+    'p.texture': 'Texture',
+    'p.alpha': 'Alpha',
+    'p.speed': 'Speed',
+    'p.offset': 'Offset',
+    'p.scale': 'Scale',
+    'p.tiling': 'Tiling',
+    'p.intensity': 'Intensity',
+    'p.amount': 'Amount',
+    'p.radius': 'Radius',
+    'p.threshold': 'Threshold',
+    'p.softness': 'Softness',
+    'p.grid': 'Grid Size',
+    'p.blend': 'Blend Mode',
+    'p.mode': 'Mode',
+    'p.start': 'Start Color',
+    'p.end': 'End Color',
+    'p.axis': 'Axis',
+    'p.frequency': 'Frequency',
+    'p.seed': 'Seed',
+    'p.strength': 'Strength',
+    'p.columns': 'Columns',
+    'p.rows': 'Rows',
+    'p.frames': 'Frames',
+    'p.fps': 'FPS',
+    'p.value': 'Value',
+    'p.min': 'Min',
+    'p.max': 'Max',
+    'p.wrap': 'Wrap',
+    'p.repeat': 'Repeat',
+    'p.invert': 'Invert',
+    'p.code': 'GLSL',
+    'p.tilt': 'Tilt',
+    'p.width': 'Width',
+    'p.falloff': 'Falloff',
+    'p.refraction_amount': 'Refraction Amount',
+    'p.reflection_flip': 'Flip Vertical',
+    'p.depth': 'Depth',
+    'p.resolution': 'Resolution',
+};
+
+const zh: Record<string, string> = {
+    'tool.undo': '撤销',
+    'tool.redo': '重做',
+    'tool.fit': '适配',
+    'tool.delete': '删除',
+    'tool.refresh': '刷新',
+    'tool.save': '保存',
+    'tool.saveAs': '另存为新特效',
+    'tool.saved': '已保存',
+    'tool.unsaved': '未保存',
+    'drop.discardChanges': '放弃未保存的节点图更改并切换特效吗？',
+    'load.title': '无法将特效作为节点图打开',
+    'load.noGraph': '此特效没有有效的嵌入式 pTS-Effect 节点图。',
+    'load.failed': '无法加载特效：',
+    'load.preserved': '原始特效未被修改。请创建独立的新特效以开始编辑节点图。',
+    'load.changed': '打开其他特效时节点图发生了更改；已保留当前节点图。',
+    'load.createFailed': '无法创建新特效。',
+    'load.copySaved': '已保存新特效；原特效仍处于打开状态：',
+
+    'lib.search': '搜索节点...',
+    'lib.empty': '没有匹配的节点。',
+    'lib.hint': '拖拽节点到画布，或双击画布添加输出根节点。',
+
+    'cat.texture': '纹理',
+    'cat.input': '输入',
+    'cat.uv': 'UV',
+    'cat.effects': '特效',
+    'cat.output': '输出',
+
+    'node.texture': '纹理',
+    'node.gradient': '渐变',
+    'node.refraction': '折射',
+    'node.reflection': '倒影',
+    'node.noise': '噪声',
+    'node.shadow': '阴影',
+    'node.solid_color': '纯色',
+    'node.coordinate': '坐标',
+    'node.time': '时间',
+    'node.constant': '常量',
+    'node.param_relay': '参数中转',
+    'node.uv_offset': 'UV 偏移',
+    'node.uv_remap': 'UV 重映射',
+    'node.distort': '扭曲',
+    'node.alpha_anim': '透明动画',
+    'node.mask': '遮罩',
+    'node.blur': '模糊',
+    'node.pixelate': '像素化',
+    'node.sprite_sheet': '序列帧',
+    'node.mixer': '混合器',
+    'node.dissolve': '溶解',
+    'node.glow': '辉光',
+    'node.outline': '描边',
+    'node.output': '输出',
+    'node.code': '代码',
+    'node.parallax': '视差',
+
+    'port.color': '颜色',
+    'port.uv': 'UV',
+    'port.mask': '遮罩',
+    'port.depth': '深度',
+    'port.value': '数值',
+    'port.colorA': 'A',
+    'port.colorB': 'B',
+    'port.in': '输入',
+    'port.out': '输出',
+
+    'insp.title': '检查器',
+    'insp.none': '未选中节点。',
+    'insp.node': '节点',
+    'insp.common': '通用',
+    'insp.layers': '图层',
+    'insp.name': '名称',
+    'insp.type': '类型',
+    'insp.position': '位置',
+
+    'graph.title': '图设置',
+    'graph.nodes': '节点',
+    'graph.links': '连线',
+    'graph.outline': '节点大纲',
+    'graph.output': '输出',
+
+    'status.shortcuts': '左键拖空白 框选 · Shift/Ctrl+拖 或 中键 平移 · Ctrl+点 加选 · 滚轮 缩放 · Alt+点 断线 · 双击 添加',
+    'status.nodes': '节点',
+    'status.links': '连线',
+    'status.unsaved': '未保存 Ctrl+S',
+    'status.saved': '已保存',
+
+    'empty.title': '未打开特效',
+    'empty.hint': '在资源面板中打开 .effect 资源，或右键 → 创建特效 新建一个，然后打开编辑器。',
+    'empty.create': '创建新特效',
+
+    'settings.language': '语言',
+    'settings.language.en': 'English',
+    'settings.language.zh': '中文',
+
+    'p.color': '颜色',
+    'p.texture': '纹理',
+    'p.alpha': '透明度',
+    'p.speed': '速度',
+    'p.offset': '偏移',
+    'p.scale': '缩放',
+    'p.tiling': '平铺',
+    'p.intensity': '强度',
+    'p.amount': '数量',
+    'p.radius': '半径',
+    'p.threshold': '阈值',
+    'p.softness': '柔和度',
+    'p.grid': '网格大小',
+    'p.blend': '混合模式',
+    'p.mode': '模式',
+    'p.start': '起始色',
+    'p.end': '结束色',
+    'p.axis': '轴向',
+    'p.frequency': '频率',
+    'p.seed': '种子',
+    'p.strength': '强度',
+    'p.columns': '列数',
+    'p.rows': '行数',
+    'p.frames': '帧数',
+    'p.fps': '帧率',
+    'p.value': '数值',
+    'p.min': '最小值',
+    'p.max': '最大值',
+    'p.wrap': '循环',
+    'p.repeat': '重复',
+    'p.invert': '反转',
+    'p.code': 'GLSL',
+    'p.tilt': '倾斜',
+    'p.width': '宽度',
+    'p.falloff': '衰减',
+    'p.refraction_amount': '折射量',
+    'p.reflection_flip': '垂直翻转',
+    'p.depth': '深度',
+    'p.resolution': '分辨率',
+};
+
+const dict: Record<Lang, Record<string, string>> = { en, zh };
+
+export function t(lang: string | undefined, key: string): string {
+    const l = lang === 'zh' ? 'zh' : 'en';
+    const table = dict[l];
+    if (table && table[key] !== undefined) return table[key];
+    if (en[key] !== undefined) return en[key];
+    return key;
+}
+
+export function availableLangs(): { id: Lang; label: string }[] {
+    return [
+        { id: 'en', label: 'English' },
+        { id: 'zh', label: '中文' },
+    ];
+}

@@ -1,0 +1,88 @@
+{
+    "$schema": "./@types/schema/package/index.json",
+    "package_version": 2,
+    "name": "pts-effect",
+    "version": "1.0.0",
+    "author": "pTSern",
+    "editor": ">=3.8.8",
+    "description": "i18n:pts-effect.description",
+    "main": "./bootstrap.js",
+    "scripts": {
+        "build": "tsc",
+        "watch": "tsc -w"
+    },
+    "devDependencies": {
+        "@cocos/creator-types": "^3.8.0",
+        "@types/node": "^18.17.1",
+        "typescript": "^5.8.2"
+    },
+    "panels": {
+        "default": {
+            "title": "pTS-Effect",
+            "type": "dockable",
+            "main": "./dist/panel.js",
+            "size": {
+                "min-width": 900,
+                "min-height": 560,
+                "width": 1280,
+                "height": 720
+            }
+        }
+    },
+    "contributions": {
+        "menu": [
+            {
+                "path": "i18n:menu.extension/pTS-Effect",
+                "label": "i18n:pts-effect.open",
+                "message": "open-panel"
+            },
+            {
+                "path": "i18n:menu.extension/pTS-Effect",
+                "label": "i18n:pts-effect.reload",
+                "message": "reload"
+            }
+        ],
+        "assets": {
+            "menu": {
+                "methods": "./dist/asset-menu.js",
+                "createMenu": "onCreateMenu"
+            }
+        },
+        "profile": {
+            "project": {
+                "language": {
+                    "default": "en",
+                    "message": "profile::project::changed_language",
+                    "label": "i18n:pts-effect.settings.language"
+                }
+            }
+        },
+        "project": {
+            "tab_1": {
+                "label": "pTS-Effect",
+                "content": {
+                    "language": {
+                        "ui": "ui-select",
+                        "attributes": {
+                            "options": [
+                                { "value": "en", "label": "i18n:pts-effect.settings.language.en" },
+                                { "value": "zh", "label": "i18n:pts-effect.settings.language.zh" }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "messages": {
+            "open-panel": { "methods": ["openPanel"] },
+            "reload": { "methods": ["reload"] },
+            "load-effect": { "methods": ["loadEffect"] },
+            "save-effect": { "methods": ["saveEffect"] },
+            "create-effect": { "methods": ["createEffect"] },
+            "compile-effect": { "methods": ["compileEffect"] },
+            "get-language": { "methods": ["getLanguage"] },
+            "set-language": { "methods": ["setLanguage"] },
+            "profile::project::changed_language": { "methods": ["profile::project::changed_language"] }
+        }
+    }
+}
