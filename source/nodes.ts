@@ -9,7 +9,7 @@
  */
 
 import { createGraph, addNode } from './graph';
-import type { EffectGraph, GraphNode, NodeTypeDef } from './graph';
+import type { EffectGraph, GraphNode, GraphPort, NodeTypeDef, PortDef } from './graph';
 
 // ---------------------------------------------------------------------------
 // Codegen context
@@ -25,6 +25,8 @@ export interface EmitCtx {
     uniform(key: string, kind: 'float' | 'vec2' | 'vec3' | 'vec4'): string;
     /** request a sampler2D uniform for a texture param; returns the uniform name */
     sampler(key: string): string;
+    /** Resolve a shared blackboard property to its shader identifier. */
+    property(): string;
     /** register a shared helper function (deduped by name) */
     helper(name: string, code: string): void;
 }
@@ -72,6 +74,29 @@ const pColor: RawNodeDef['params'][number] = { key: 'color', labelKey: 'p.color'
 const pResolution: RawNodeDef['params'][number] = { key: 'resolution', labelKey: 'p.resolution', kind: 'vec2', default: [512, 512] };
 
 const rawDefs: RawNodeDef[] = [
+    { id: 'subgraph_input', nameKey: 'node.subgraphInput', categoryKey: 'cat.input', color: C_INPUT, inputs: [], outputs: [],
+        params: [{ key: 'portId', labelKey: 'p.port', kind: 'string', default: '' }] },
+    { id: 'subgraph_output', nameKey: 'node.subgraphOutput', categoryKey: 'cat.output', color: C_OUTPUT, inputs: [], outputs: [],
+        params: [{ key: 'portId', labelKey: 'p.port', kind: 'string', default: '' }] },
+    { id: 'subgraph', nameKey: 'node.subgraph', categoryKey: 'cat.effects', color: C_EFFECTS, inputs: [], outputs: [],
+        params: [{ key: 'assetUuid', labelKey: 'p.assetUuid', kind: 'string', default: '' }] },
+    { id: 'custom_function', nameKey: 'node.customFunction', categoryKey: 'cat.effects', color: C_EFFECTS, inputs: [], outputs: [],
+        params: [{ key: 'code', labelKey: 'p.code', kind: 'string', default: '' }] },
+    ...(['float', 'vec2', 'vec3', 'vec4', 'color', 'texture'] as const).map((kind): RawNodeDef => ({
+        id: `property_${kind}`,
+        nameKey: 'node.property',
+        categoryKey: 'cat.input',
+        color: C_INPUT,
+        inputs: kind === 'texture' ? [{ id: 'uv', type: 'vec2', labelKey: 'port.uv' }] : [],
+        outputs: [{ id: 'value', type: kind === 'float' ? 'float' : kind === 'vec2' ? 'vec2' : 'color', labelKey: 'port.value' }],
+        params: [{ key: 'propertyId', labelKey: 'p.property', kind: 'string', default: '' }],
+        emit: (c) => {
+            const value = c.property();
+            const expression = kind === 'texture' ? `texture(${value}, ${c.inputs.get('uv')})`
+                : kind === 'vec3' ? `vec4(${value}, 1.0)` : value;
+            return [`${c.outputs.get('value')} = ${expression};`];
+        },
+    })),
     // ---------------- Texture ----------------
     {
         id: 'texture',
@@ -691,8 +716,28 @@ export function getNodeType(id: string): NodeTypeDef | undefined {
     return typeMap.get(id);
 }
 
+/** Resolve ports whose signatures are stored on the graph or node. */
+export function getNodeTypeForNode(node: GraphNode, graph: EffectGraph): NodeTypeDef | undefined {
+    const base = getNodeType(node.type);
+    if (!base) return undefined;
+    const ports = (value: unknown): PortDef[] => Array.isArray(value)
+        ? (value as GraphPort[]).filter((port) => port && typeof port.id === 'string')
+            .map((port) => ({ id: port.id, type: port.type, labelKey: port.name }))
+        : [];
+    if (node.type === 'subgraph_input' || node.type === 'subgraph_output') {
+        const isInput = node.type === 'subgraph_input';
+        const declared = isInput ? graph.interface?.inputs : graph.interface?.outputs;
+        const port = ports(declared).filter((p) => p.id === node.params.portId);
+        return { ...base, inputs: isInput ? [] : port, outputs: isInput ? port : [] };
+    }
+    if (node.type === 'subgraph' || node.type === 'custom_function') {
+        return { ...base, inputs: ports(node.params.inputs), outputs: ports(node.params.outputs) };
+    }
+    return base;
+}
+
 export function isImplemented(id: string): boolean {
-    return typeof NODE_EMIT[id] === 'function';
+    return typeof NODE_EMIT[id] === 'function' || ['subgraph_input', 'subgraph_output', 'subgraph', 'custom_function'].includes(id);
 }
 
 /** Blend mode enum string -> float index (matching pTS_blendColor thresholds). */

@@ -7,7 +7,7 @@
 const path = require('path');
 const { createGraph, addNode, genId, decodeGraphComment } = require('../dist/graph.js');
 const { getNodeType, NODE_TYPES, isImplemented, createDefaultGraph } = require('../dist/nodes.js');
-const { compileEffect } = require('../dist/codegen.js');
+const { compileEffect, validateSubgraph } = require('../dist/codegen.js');
 
 let failures = 0;
 
@@ -33,8 +33,8 @@ function validate(name, graph) {
 
     const fs = res.effect.split('CCProgram sprite-fs %{')[1] || '';
 
-    const assigned = new Set([...fs.matchAll(/(p_\w+)\s*=/g)].map((m) => m[1]));
-    const declared = new Set([...fs.matchAll(/(?:vec4|vec3|vec2|float)\s+(p_\w+)\s*;/g)].map((m) => m[1]));
+    const assigned = new Set([...fs.matchAll(/(pTS_v_\d+)\s*=/g)].map((m) => m[1]));
+    const declared = new Set([...fs.matchAll(/(?:vec4|vec3|vec2|float)\s+(pTS_v_\d+)\s*;/g)].map((m) => m[1]));
     const missingDecl = [...assigned].filter((v) => !declared.has(v));
     check(`${name}: output vars declared`, missingDecl.length === 0, missingDecl.join(', '));
 
@@ -78,7 +78,8 @@ validate('connected', connected);
 const all = createGraph();
 let i = 0;
 for (const t of NODE_TYPES) {
-    if (!isImplemented(t.id) || t.id === 'output') continue;
+    if (!isImplemented(t.id) || t.id === 'output' || t.id.startsWith('property_') ||
+        ['subgraph', 'subgraph_input', 'subgraph_output', 'custom_function'].includes(t.id)) continue;
     node(all, t.id, 60 + (i % 6) * 260, 60 + Math.floor(i / 6) * 220);
     i++;
 }
@@ -109,7 +110,7 @@ link(scoped, blend, 'color', scopedOut, 'color');
 const scopedResult = compileEffect(scoped);
 check('reachable graph generates', !scopedResult.error, scopedResult.error);
 const fragment = (scopedResult.effect.split('CCProgram sprite-fs %{')[1] || '');
-const gradientBlocks = [...fragment.matchAll(/\{\s*float t = [\s\S]*?p_(\w+)_color = mix\([\s\S]*?\n\s*\}/g)];
+const gradientBlocks = [...fragment.matchAll(/\{\s*float t = [\s\S]*?(pTS_v_\d+) = mix\([\s\S]*?\n\s*\}/g)];
 check('same-named temporaries have separate node scopes', gradientBlocks.length === 2 &&
     new Set(gradientBlocks.map((m) => m[1])).size === 2);
 check('disconnected code is not emitted', !fragment.includes('invalid disconnected shader code'));
@@ -161,7 +162,7 @@ function linkGraph() {
 {
     const { graph, source } = linkGraph();
     source.type = 'not-a-real-node';
-    expectInvalid('unknown connected node rejected', graph, /unknown node type.*not-a-real-node/i);
+    expectInvalid('unknown connected node rejected', graph, /unknown or unsupported type.*not-a-real-node/i);
 }
 {
     const { graph, source } = linkGraph();
@@ -172,6 +173,74 @@ function linkGraph() {
     const { graph } = linkGraph();
     graph.links.push(null);
     expectInvalid('malformed link rejected', graph, /invalid link/i);
+}
+
+{
+    const graph = createGraph();
+    graph.properties = [{ id: 'shared', name: 'u_bb_Tint', type: 'color', value: [1, 0, 0, 1] }];
+    const first = node(graph, 'property_color', 0, 0);
+    const second = node(graph, 'property_color', 0, 0);
+    first.params.propertyId = second.params.propertyId = 'shared';
+    const mixer = node(graph, 'mixer', 0, 0);
+    const output = node(graph, 'output', 0, 0);
+    link(graph, first, 'value', mixer, 'colorA');
+    link(graph, second, 'value', mixer, 'colorB');
+    link(graph, mixer, 'color', output, 'color');
+    const result = compileEffect(graph);
+    check('shared property generates', !result.error, result.error);
+    check('shared property has stable material reference', /u_bb_Tint:\s*\{\s*value:\s*\[1\.0,\s*0\.0,\s*0\.0,\s*1\.0\]/.test(result.effect));
+    check('shared property survives round-trip', JSON.stringify(decodeGraphComment(result.effect)?.properties) === JSON.stringify(graph.properties));
+    graph.properties.push({ ...graph.properties[0], id: 'duplicate' });
+    check('duplicate property references rejected', /duplicate blackboard reference/i.test(compileEffect(graph).error || ''));
+}
+
+{
+    const sub = createGraph();
+    sub.interface = {
+        inputs: [{ id: 'inColor', name: 'sourceColor', type: 'color' }],
+        outputs: [{ id: 'outColor', name: 'resultColor', type: 'color' }],
+    };
+    const input = node(sub, 'subgraph_input', 0, 0);
+    input.params.portId = 'inColor';
+    const custom = node(sub, 'custom_function', 0, 0);
+    custom.params.inputs = [{ id: 'input', name: 'src', type: 'color' }];
+    custom.params.outputs = [{ id: 'output', name: 'dst', type: 'color' }];
+    custom.params.code = 'dst = src * 0.5;';
+    const output = node(sub, 'subgraph_output', 0, 0);
+    output.params.portId = 'outColor';
+    link(sub, input, 'inColor', custom, 'input');
+    link(sub, custom, 'output', output, 'outColor');
+    check('standalone subgraph validates', !validateSubgraph(sub, {}));
+
+    const graph = createGraph();
+    const source = node(graph, 'solid_color', 0, 0);
+    const first = node(graph, 'subgraph', 0, 0);
+    const second = node(graph, 'subgraph', 0, 0);
+    for (const instance of [first, second]) {
+        instance.params.assetUuid = 'asset-1';
+        instance.params.inputs = sub.interface.inputs;
+        instance.params.outputs = sub.interface.outputs;
+        link(graph, source, 'color', instance, 'inColor');
+    }
+    const mixer = node(graph, 'mixer', 0, 0);
+    const root = node(graph, 'output', 0, 0);
+    link(graph, first, 'outColor', mixer, 'colorA');
+    link(graph, second, 'outColor', mixer, 'colorB');
+    link(graph, mixer, 'color', root, 'color');
+    const compiled = compileEffect(graph, 'subgraphs', { 'asset-1': sub });
+    check('repeated subgraph instances compile', !compiled.error, compiled.error);
+    check('custom functions have distinct namespaced definitions',
+        (compiled.effect.match(/void pTS_custom_\d+\(/g) || []).length === 2);
+    check('missing subgraph is rejected', /missing subgraph/i.test(compileEffect(graph).error || ''));
+    const changed = JSON.parse(JSON.stringify(sub));
+    changed.interface.inputs[0].type = 'vec2';
+    check('changed subgraph signature is rejected', /signature/i.test(compileEffect(graph, '', { 'asset-1': changed }).error || ''));
+    const cyclic = JSON.parse(JSON.stringify(sub));
+    const recursive = node(cyclic, 'subgraph', 0, 0);
+    recursive.params.assetUuid = 'asset-1';
+    recursive.params.inputs = cyclic.interface.inputs;
+    recursive.params.outputs = cyclic.interface.outputs;
+    check('recursive dependencies are rejected', /cycle/i.test(validateSubgraph(cyclic, { 'asset-1': cyclic }, 'asset-1') || ''));
 }
 
 console.log('==================================');

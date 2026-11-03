@@ -6,7 +6,7 @@
 
 import { genId, addNode, removeNode, getNode, findInputLink } from './graph';
 import type { EffectGraph, GraphNode, Link, NodeTypeDef } from './graph';
-import { getNodeType, isImplemented } from './nodes';
+import { getNodeType, getNodeTypeForNode, isImplemented } from './nodes';
 import { t } from './i18n';
 import type { Lang } from './i18n';
 
@@ -19,6 +19,7 @@ const PORT_R = 5;
 export interface NodeGraphEditorOptions {
     graph: EffectGraph;
     lang: Lang;
+    isSubgraph?: boolean;
     onChange: () => void;
     onSelect: (nodeId: string | null) => void;
 }
@@ -48,6 +49,7 @@ export class NodeGraphEditor {
 
     private graph: EffectGraph;
     private lang: Lang;
+    private isSubgraph: boolean;
     private onChange: () => void;
     private onSelect: (nodeId: string | null) => void;
 
@@ -70,6 +72,7 @@ export class NodeGraphEditor {
         this.container = container;
         this.graph = opts.graph;
         this.lang = opts.lang;
+        this.isSubgraph = !!opts.isSubgraph;
         this.onChange = opts.onChange;
         this.onSelect = opts.onSelect;
 
@@ -140,10 +143,50 @@ export class NodeGraphEditor {
     }
 
     addNode(typeId: string, x: number, y: number): void {
+        if (this.isSubgraph && typeId === 'output') return;
         const type = getNodeType(typeId);
         if (!type || !isImplemented(typeId)) return;
         const world = this.screenToWorld(x, y);
-        addNode(this.graph, typeId, world.x, world.y, type);
+        const node = addNode(this.graph, typeId, world.x, world.y, type);
+        if (typeId === 'custom_function' || typeId === 'subgraph') {
+            node.params.inputs = [];
+            node.params.outputs = [];
+        }
+        this.commit();
+    }
+
+    addPropertyNode(typeId: string, propertyId: string, x: number, y: number): void {
+        const type = getNodeType(typeId);
+        if (!type || !isImplemented(typeId)) return;
+        const world = this.screenToWorld(x, y);
+        const node = addNode(this.graph, typeId, world.x, world.y, type);
+        node.params.propertyId = propertyId;
+        this.commit();
+    }
+
+    addConfiguredNode(typeId: string, params: Record<string, unknown>, x: number, y: number): void {
+        const type = getNodeType(typeId);
+        if (!type || !isImplemented(typeId)) return;
+        const world = this.screenToWorld(x, y);
+        const node = addNode(this.graph, typeId, world.x, world.y, type);
+        Object.assign(node.params, params);
+        this.commit();
+        this.selectNode(node.id);
+    }
+
+    /** Remove connections invalidated by changed dynamic port definitions. */
+    commitPortChange(): void {
+        this.graph.links = this.graph.links.filter((link) => {
+            const from = getNode(this.graph, link.from.node);
+            const to = getNode(this.graph, link.to.node);
+            const output = from && getNodeTypeForNode(from, this.graph)?.outputs.find((port) => port.id === link.from.port);
+            const input = to && getNodeTypeForNode(to, this.graph)?.inputs.find((port) => port.id === link.to.port);
+            return !!output && !!input && output.type === input.type;
+        });
+        this.commit();
+    }
+
+    commitExternalChange(): void {
         this.commit();
     }
 
@@ -194,6 +237,7 @@ export class NodeGraphEditor {
         const hasOutput = this.graph.nodes.some((node) => node.type === 'output');
         let copiedOutput = false;
         const nodes = source.nodes.filter((node) => {
+            if (node.type === 'subgraph_output' && this.graph.nodes.some((existing) => existing.type === node.type && existing.params.portId === node.params.portId)) return false;
             if (node.type !== 'output') return true;
             if (hasOutput || copiedOutput) return false;
             copiedOutput = true;
@@ -265,8 +309,8 @@ export class NodeGraphEditor {
     // ------------------------------------------------------------------
 
     private commit(): void {
-        this.onChange();
         this.pushHistory();
+        this.onChange();
         this.render();
     }
 
@@ -285,6 +329,10 @@ export class NodeGraphEditor {
             if (!parsed || !Array.isArray(parsed.nodes)) return;
             this.graph.nodes = parsed.nodes;
             this.graph.links = parsed.links;
+            if (parsed.properties === undefined) delete this.graph.properties;
+            else this.graph.properties = parsed.properties;
+            if (parsed.interface === undefined) delete this.graph.interface;
+            else this.graph.interface = parsed.interface;
             this.selection.clear();
             this.onSelect(null);
             this.onChange();
@@ -315,7 +363,7 @@ export class NodeGraphEditor {
     }
 
     private geometry(node: GraphNode): NodeGeometry {
-        const type = getNodeType(node.type);
+        const type = getNodeTypeForNode(node, this.graph);
         const rows = Math.max(type?.inputs.length ?? 0, type?.outputs.length ?? 0, 1);
         return {
             node,
@@ -437,7 +485,9 @@ export class NodeGraphEditor {
         title.setAttribute('fill', '#fff');
         title.setAttribute('font-size', '12');
         title.setAttribute('font-weight', '600');
-        title.textContent = t(this.lang, g.type.nameKey);
+        title.textContent = node.type.startsWith('property_')
+            ? this.graph.properties?.find((property) => property.id === node.params.propertyId)?.name ?? '(Missing property)'
+            : t(this.lang, g.type.nameKey);
         group.appendChild(title);
 
         const sub = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -694,14 +744,15 @@ export class NodeGraphEditor {
     private onDoubleClick = (e: MouseEvent): void => {
         const target = e.target as Element | null;
         if (target?.closest?.('[data-node-id]') || target?.closest?.('[data-port-id]')) return;
-        const w = this.screenToWorld(e.clientX, e.clientY);
-        this.addNode('output', w.x, w.y);
+        this.addNode('output', e.clientX, e.clientY);
     };
 
     private connect(fromNode: string, fromPort: string, toNode: string, toPort: string): boolean {
         if (!fromNode || !toNode || fromNode === toNode) return false;
-        const fromType = getNodeType(getNode(this.graph, fromNode)?.type ?? '');
-        const toType = getNodeType(getNode(this.graph, toNode)?.type ?? '');
+        const from = getNode(this.graph, fromNode);
+        const to = getNode(this.graph, toNode);
+        const fromType = from && getNodeTypeForNode(from, this.graph);
+        const toType = to && getNodeTypeForNode(to, this.graph);
         const outPort = fromType?.outputs.find((p) => p.id === fromPort);
         const inPort = toType?.inputs.find((p) => p.id === toPort);
         if (!outPort || !inPort) return false;

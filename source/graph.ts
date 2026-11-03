@@ -5,7 +5,13 @@
  * (file I/O) and the panel (editor UI).
  */
 
-export type PortType = 'color' | 'vec2' | 'float' | 'texture';
+export type PortType = 'color' | 'vec2' | 'vec3' | 'vec4' | 'float' | 'texture';
+
+export interface GraphPort {
+    id: string;
+    name: string;
+    type: PortType;
+}
 
 export interface PortDef {
     id: string;
@@ -68,10 +74,22 @@ export interface Link {
     to: LinkEndpoint;
 }
 
+export type GraphPropertyType = 'float' | 'vec2' | 'vec3' | 'vec4' | 'color' | 'texture';
+
+export interface GraphProperty {
+    id: string;
+    name: string;
+    type: GraphPropertyType;
+    /** Texture defaults are built-in effect defaults, not asset bindings. */
+    value: number | number[] | 'white' | 'grey';
+}
+
 export interface EffectGraph {
     version: number;
     nodes: GraphNode[];
     links: Link[];
+    properties?: GraphProperty[];
+    interface?: { inputs: GraphPort[]; outputs: GraphPort[] };
 }
 
 export const GRAPH_VERSION = 1;
@@ -159,7 +177,13 @@ export function deserializeGraph(json: string): EffectGraph | null {
         if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.links)) {
             return null;
         }
-        return { version: data.version ?? GRAPH_VERSION, nodes: data.nodes, links: data.links };
+        return {
+            version: data.version ?? GRAPH_VERSION,
+            nodes: data.nodes,
+            links: data.links,
+            ...(Object.prototype.hasOwnProperty.call(data, 'properties') ? { properties: data.properties } : {}),
+            ...(Object.prototype.hasOwnProperty.call(data, 'interface') ? { interface: data.interface } : {}),
+        };
     } catch {
         return null;
     }
